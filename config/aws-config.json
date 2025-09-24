@@ -1,0 +1,26 @@
+{
+  "region": "us-east-2",
+  "accessKeyId": "AKIAWOYDIIU23JVVYS7Q",
+  "secretAccessKey": "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",
+  "iotEndpoint": "a3rraunrst0t2y-ats.iot.us-east-2.amazonaws.com",
+  "testDevices": [
+    {
+      "deviceId": "TEST_DEVICE_001",
+      "thingName": "TEST_DEVICE_001"
+    },
+    {
+      "deviceId": "TEST_DEVICE_002",
+      "thingName": "TEST_DEVICE_002"
+    },
+    {
+      "deviceId": "TEST_DEVICE_003",
+      "thingName": "TEST_DEVICE_003"
+    }
+  ],
+  "topics": {
+    "broadcast": "audio/broadcast",
+    "devicePrefix": "audio/device/",
+    "status": "audio/status",
+    "presence": "$aws/events/presence/connected/+"
+  }
+}

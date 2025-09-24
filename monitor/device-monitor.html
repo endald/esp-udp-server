@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ESP32 Device Monitor</title>
+    <link rel="stylesheet" href="monitor-style.css">
+</head>
+<body>
+    <div class="monitor-container">
+        <header>
+            <h1>Device <span id="deviceId">---</span> Monitor</h1>
+            <div class="device-info">
+                <span class="status-indicator" id="statusIndicator"></span>
+                <span>Pattern: <span id="audioPattern">---</span></span>
+                <span>Frequency: <span id="frequency">---</span> Hz</span>
+                <span>Sample Rate: <span id="sampleRate">---</span> Hz</span>
+            </div>
+        </header>
+
+        <main>
+            <!-- Outgoing Audio Waveform -->
+            <section class="waveform-section">
+                <h2>📤 Outgoing Audio (Transmitting)</h2>
+                <canvas id="outgoingCanvas" width="800" height="200"></canvas>
+                <div class="waveform-info">
+                    <span>Packets Sent: <span id="packetsSent">0</span></span>
+                    <span>Status: <span id="transmitStatus">Idle</span></span>
+                </div>
+            </section>
+
+            <!-- Incoming Audio Waveform -->
+            <section class="waveform-section">
+                <h2>📥 Incoming Audio (Receiving)</h2>
+                <canvas id="incomingCanvas" width="800" height="200"></canvas>
+                <div class="waveform-info">
+                    <span>Packets Received: <span id="packetsReceived">0</span></span>
+                    <span>Packet Loss: <span id="packetLoss">0</span></span>
+                </div>
+            </section>
+
+            <!-- Statistics -->
+            <section class="stats-section">
+                <h2>📊 Statistics</h2>
+                <div class="stats-grid">
+                    <div class="stat-item">
+                        <label>Transmission Rate:</label>
+                        <span id="txRate">0 pps</span>
+                    </div>
+                    <div class="stat-item">
+                        <label>Reception Rate:</label>
+                        <span id="rxRate">0 pps</span>
+                    </div>
+                    <div class="stat-item">
+                        <label>Audio Quality:</label>
+                        <span id="quality">Good</span>
+                    </div>
+                    <div class="stat-item">
+                        <label>Connection:</label>
+                        <span id="connection">Disconnected</span>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Audio Analysis -->
+            <section class="analysis-section">
+                <h2>🎵 Audio Analysis</h2>
+                <div class="analysis-grid">
+                    <div class="analysis-item">
+                        <canvas id="spectrumCanvas" width="380" height="150"></canvas>
+                        <label>Frequency Spectrum</label>
+                    </div>
+                    <div class="analysis-item">
+                        <canvas id="correlationCanvas" width="380" height="150"></canvas>
+                        <label>Signal Correlation</label>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <footer>
+            <div class="controls">
+                <button id="pauseBtn" onclick="togglePause()">Pause</button>
+                <button id="clearBtn" onclick="clearBuffers()">Clear</button>
+                <button id="muteBtn" onclick="toggleMute()">Mute</button>
+            </div>
+            <div class="timestamp">
+                Last Update: <span id="lastUpdate">Never</span>
+            </div>
+        </footer>
+    </div>
+
+    <script src="waveform.js"></script>
+</body>
+</html>

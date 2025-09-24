@@ -1,0 +1,43 @@
+{
+  "name": "esp32-udp-audio-system",
+  "version": "1.0.0",
+  "description": "Production-ready UDP audio communication system for ESP32 devices",
+  "main": "server/udp-server.js",
+  "scripts": {
+    "start": "node server/udp-server.js",
+    "dev": "nodemon server/udp-server.js",
+    "simulator": "node test/esp32-simulator.js",
+    "test": "node test/packet-analyzer.js",
+    "dashboard": "python -m http.server 8080 -d dashboard",
+    "setup": "npm install",
+    "load-test": "node test/load-test.js"
+  },
+  "keywords": [
+    "esp32",
+    "udp",
+    "audio",
+    "opus",
+    "iot",
+    "aws"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@discordjs/opus": "^0.9.0",
+    "express": "^4.18.2",
+    "ws": "^8.14.2",
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1",
+    "aws-iot-device-sdk": "^2.2.13",
+    "mqtt": "^5.0.5",
+    "uuid": "^9.0.1",
+    "winston": "^3.10.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1",
+    "jest": "^29.6.4"
+  },
+  "engines": {
+    "node": ">=14.0.0"
+  }
+}

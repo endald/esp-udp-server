@@ -1,0 +1,42 @@
+{
+  "udp": {
+    "serverPort": 5004,
+    "devicePortStart": 5005,
+    "devicePortEnd": 5020,
+    "maxPacketSize": 512,
+    "bufferSize": 65536
+  },
+  "audio": {
+    "sampleRate": 16000,
+    "channels": 1,
+    "frameDuration": 20,
+    "opusBitrate": 16000,
+    "jitterBufferSize": 5
+  },
+  "websocket": {
+    "port": 8081,
+    "pingInterval": 30000,
+    "pingTimeout": 5000
+  },
+  "device": {
+    "maxDevices": 50,
+    "timeoutSeconds": 60,
+    "heartbeatInterval": 30000
+  },
+  "routing": {
+    "defaultMode": "unicast",
+    "enableBroadcast": true,
+    "enableGroupCalls": true,
+    "maxGroupSize": 10
+  },
+  "logging": {
+    "level": "info",
+    "file": "logs/server.log",
+    "maxSize": "10m",
+    "maxFiles": 5
+  },
+  "security": {
+    "requireCertificates": false,
+    "allowSimulators": true
+  }
+}

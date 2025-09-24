@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ESP32 UDP Audio Control Dashboard</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>ESP32 Audio Routing Control</h1>
+            <div class="server-status">
+                <span class="status-indicator" id="serverStatus"></span>
+                <span>Server: <span id="serverAddress">Connecting...</span></span>
+            </div>
+        </header>
+
+        <main>
+            <!-- Device Grid -->
+            <section class="devices-section">
+                <h2>Devices</h2>
+                <div class="devices-grid" id="devicesGrid"></div>
+            </section>
+
+            <!-- Routing Matrix -->
+            <section class="routing-section">
+                <h2>Audio Routing</h2>
+                <div class="routing-controls">
+                    <button onclick="applyScenario('all-to-all')">Conference Mode</button>
+                    <button onclick="applyScenario('pairs')">Pair Devices</button>
+                    <button onclick="applyScenario('chain')">Chain Mode</button>
+                    <button onclick="applyScenario('hub')">Hub Mode</button>
+                    <button onclick="applyScenario('clear')">Clear All</button>
+                </div>
+                <div class="routing-matrix" id="routingMatrix"></div>
+            </section>
+
+            <!-- Statistics -->
+            <section class="stats-section">
+                <h2>Statistics</h2>
+                <div class="stats-grid" id="statsGrid">
+                    <div class="stat-card">
+                        <h3>Server</h3>
+                        <div class="stat-value" id="serverPackets">0</div>
+                        <div class="stat-label">Packets Routed</div>
+                    </div>
+                    <div class="stat-card">
+                        <h3>Bandwidth</h3>
+                        <div class="stat-value" id="bandwidth">0 KB/s</div>
+                        <div class="stat-label">Total Throughput</div>
+                    </div>
+                    <div class="stat-card">
+                        <h3>Latency</h3>
+                        <div class="stat-value" id="latency">0 ms</div>
+                        <div class="stat-label">Average</div>
+                    </div>
+                    <div class="stat-card">
+                        <h3>Active Routes</h3>
+                        <div class="stat-value" id="activeRoutes">0</div>
+                        <div class="stat-label">Connections</div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Activity Log -->
+            <section class="activity-section">
+                <h2>Activity Log</h2>
+                <div class="activity-log" id="activityLog"></div>
+            </section>
+        </main>
+
+        <!-- Device Context Menu -->
+        <div class="context-menu" id="deviceMenu">
+            <div class="menu-item" onclick="toggleMute()">
+                <span id="muteText">Mute</span>
+            </div>
+            <div class="menu-item" onclick="toggleBroadcast()">
+                <span id="broadcastText">Enable Broadcast</span>
+            </div>
+            <div class="menu-item" onclick="clearDeviceRoutes()">Clear Routes</div>
+            <div class="menu-divider"></div>
+            <div class="menu-item" onclick="viewDeviceStats()">View Stats</div>
+        </div>
+
+        <!-- Route Configuration Modal -->
+        <div class="modal" id="routeModal">
+            <div class="modal-content">
+                <h3>Configure Route</h3>
+                <div class="route-config">
+                    <div class="route-from">
+                        <label>From:</label>
+                        <span id="routeFrom"></span>
+                    </div>
+                    <div class="route-to">
+                        <label>To:</label>
+                        <select id="routeTo"></select>
+                    </div>
+                    <div class="route-type">
+                        <label>
+                            <input type="radio" name="routeType" value="unidirectional" checked>
+                            One-way
+                        </label>
+                        <label>
+                            <input type="radio" name="routeType" value="bidirectional">
+                            Two-way
+                        </label>
+                    </div>
+                </div>
+                <div class="modal-buttons">
+                    <button onclick="createRoute()">Create Route</button>
+                    <button onclick="closeRouteModal()">Cancel</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Device Stats Modal -->
+        <div class="modal" id="statsModal">
+            <div class="modal-content">
+                <h3>Device Statistics: <span id="statsDeviceId"></span></h3>
+                <div class="device-stats" id="deviceStatsContent"></div>
+                <div class="modal-buttons">
+                    <button onclick="closeStatsModal()">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>

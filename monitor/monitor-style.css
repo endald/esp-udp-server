@@ -1,0 +1,284 @@
+/* ESP32 Device Monitor Styles */
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Courier New', monospace;
+    background: #0a0a0a;
+    color: #e0e0e0;
+    overflow-x: hidden;
+}
+
+.monitor-container {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 20px;
+}
+
+/* Header */
+header {
+    background: #1a1a1a;
+    padding: 20px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+    border: 1px solid #333;
+}
+
+h1 {
+    font-size: 24px;
+    color: #00ff88;
+    margin-bottom: 10px;
+}
+
+.device-info {
+    display: flex;
+    gap: 20px;
+    font-size: 14px;
+    color: #888;
+}
+
+.device-info span {
+    color: #e0e0e0;
+}
+
+.status-indicator {
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: #ff3333;
+    margin-right: 8px;
+    animation: pulse 2s infinite;
+}
+
+.status-indicator.connected {
+    background: #00ff88;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
+
+/* Waveform Sections */
+.waveform-section {
+    background: #1a1a1a;
+    padding: 20px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+    border: 1px solid #333;
+}
+
+.waveform-section h2 {
+    font-size: 18px;
+    margin-bottom: 15px;
+    color: #00ff88;
+}
+
+canvas {
+    width: 100%;
+    height: auto;
+    background: #0a0a0a;
+    border: 1px solid #333;
+    border-radius: 4px;
+}
+
+.waveform-info {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 10px;
+    font-size: 12px;
+    color: #888;
+}
+
+.waveform-info span {
+    color: #e0e0e0;
+}
+
+/* Statistics Section */
+.stats-section {
+    background: #1a1a1a;
+    padding: 20px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+    border: 1px solid #333;
+}
+
+.stats-section h2 {
+    font-size: 18px;
+    margin-bottom: 15px;
+    color: #00ff88;
+}
+
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 15px;
+}
+
+.stat-item {
+    display: flex;
+    justify-content: space-between;
+    padding: 10px;
+    background: #0a0a0a;
+    border: 1px solid #333;
+    border-radius: 4px;
+}
+
+.stat-item label {
+    color: #888;
+    font-size: 12px;
+}
+
+.stat-item span {
+    color: #00ff88;
+    font-weight: bold;
+}
+
+/* Analysis Section */
+.analysis-section {
+    background: #1a1a1a;
+    padding: 20px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+    border: 1px solid #333;
+}
+
+.analysis-section h2 {
+    font-size: 18px;
+    margin-bottom: 15px;
+    color: #00ff88;
+}
+
+.analysis-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+}
+
+.analysis-item {
+    text-align: center;
+}
+
+.analysis-item canvas {
+    margin-bottom: 10px;
+}
+
+.analysis-item label {
+    font-size: 12px;
+    color: #888;
+}
+
+/* Footer */
+footer {
+    background: #1a1a1a;
+    padding: 15px 20px;
+    border-radius: 8px;
+    border: 1px solid #333;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.controls {
+    display: flex;
+    gap: 10px;
+}
+
+.controls button {
+    padding: 8px 16px;
+    background: #00ff88;
+    color: #0a0a0a;
+    border: none;
+    border-radius: 4px;
+    font-family: 'Courier New', monospace;
+    font-weight: bold;
+    cursor: pointer;
+    transition: all 0.3s;
+}
+
+.controls button:hover {
+    background: #00cc66;
+    transform: translateY(-2px);
+}
+
+.controls button:active {
+    transform: translateY(0);
+}
+
+.timestamp {
+    font-size: 12px;
+    color: #888;
+}
+
+.timestamp span {
+    color: #e0e0e0;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .monitor-container {
+        padding: 10px;
+    }
+
+    .device-info {
+        flex-direction: column;
+        gap: 5px;
+    }
+
+    .analysis-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .stats-grid {
+        grid-template-columns: 1fr;
+    }
+
+    footer {
+        flex-direction: column;
+        gap: 15px;
+    }
+}
+
+/* Special styles for different audio patterns */
+.pattern-sine {
+    border-color: #3498db !important;
+}
+
+.pattern-square {
+    border-color: #e74c3c !important;
+}
+
+.pattern-sawtooth {
+    border-color: #f39c12 !important;
+}
+
+.pattern-noise {
+    border-color: #9b59b6 !important;
+}
+
+/* Loading animation */
+.loading {
+    position: relative;
+    overflow: hidden;
+}
+
+.loading::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(0, 255, 136, 0.2), transparent);
+    animation: loading 2s infinite;
+}
+
+@keyframes loading {
+    0% { left: -100%; }
+    100% { left: 100%; }
+}
