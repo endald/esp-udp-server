@@ -13,17 +13,18 @@ class AudioRouter extends EventEmitter {
 
     // Set a direct route from source to target
     setRoute(sourceId, targetId) {
-        if (sourceId === targetId) {
-            console.warn(`Cannot route device ${sourceId} to itself`);
-            return false;
-        }
-
+        // ALLOW self-routing for echo mode
         if (!this.routes.has(sourceId)) {
             this.routes.set(sourceId, new Set());
         }
 
         this.routes.get(sourceId).add(targetId);
-        console.log(`📡 Route created: ${sourceId} → ${targetId}`);
+
+        if (sourceId === targetId) {
+            console.log(`🔊 ECHO MODE enabled: ${sourceId} → ${targetId} (self-echo)`);
+        } else {
+            console.log(`📡 Route created: ${sourceId} → ${targetId}`);
+        }
 
         this.emit('route-created', { source: sourceId, target: targetId });
         return true;
@@ -35,7 +36,8 @@ class AudioRouter extends EventEmitter {
             targetIds = [targetIds];
         }
 
-        this.routes.set(sourceId, new Set(targetIds.filter(id => id !== sourceId)));
+        // Allow self-routing in multiple routes
+        this.routes.set(sourceId, new Set(targetIds));
         console.log(`📡 Multiple routes created from ${sourceId} to ${targetIds.length} devices`);
 
         this.emit('routes-updated', { source: sourceId, targets: targetIds });
