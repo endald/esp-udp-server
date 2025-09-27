@@ -291,6 +291,15 @@ class DashboardAudioHandler {
             return;
         }
 
+        // Check if getUserMedia is available
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            const errorMsg = 'Microphone access requires HTTPS. Please use https:// or localhost';
+            console.error(errorMsg);
+            this.updateStatus(errorMsg, 'error');
+            alert('Microphone access is not available.\n\nThis usually happens when:\n1. The page is served over HTTP (needs HTTPS)\n2. Browser doesn\'t support getUserMedia\n\nTry accessing via https:// or use localhost for testing.');
+            return;
+        }
+
         try {
             // Request microphone access
             this.microphoneStream = await navigator.mediaDevices.getUserMedia({
@@ -349,7 +358,20 @@ class DashboardAudioHandler {
 
         } catch (error) {
             console.error('Failed to start microphone:', error);
-            this.updateStatus('Microphone error', 'error');
+
+            let errorMessage = 'Microphone error';
+            if (error.name === 'NotAllowedError') {
+                errorMessage = 'Microphone permission denied';
+            } else if (error.name === 'NotFoundError') {
+                errorMessage = 'No microphone found';
+            } else if (error.name === 'NotReadableError') {
+                errorMessage = 'Microphone is already in use';
+            } else if (error.name === 'OverconstrainedError') {
+                errorMessage = 'Microphone constraints cannot be satisfied';
+            }
+
+            this.updateStatus(errorMessage, 'error');
+            alert(`Failed to access microphone: ${errorMessage}`);
         }
     }
 

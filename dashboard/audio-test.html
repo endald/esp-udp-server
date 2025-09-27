@@ -447,6 +447,20 @@
     <script src="js/audio-handler.js"></script>
 
     <script>
+        // Check for HTTPS and show warning if needed
+        if (location.protocol !== 'https:' && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
+            console.warn('⚠️ Page is served over HTTP. Microphone access will not work.');
+            console.warn('Use HTTPS or localhost for microphone functionality.');
+
+            // Add warning banner
+            window.addEventListener('DOMContentLoaded', () => {
+                const warningBanner = document.createElement('div');
+                warningBanner.style.cssText = 'position:fixed;top:0;left:0;right:0;background:#ff6b6b;color:white;padding:10px;text-align:center;z-index:9999';
+                warningBanner.innerHTML = '⚠️ Microphone requires HTTPS - Currently using HTTP. Use https:// or localhost for microphone access.';
+                document.body.insertBefore(warningBanner, document.body.firstChild);
+            });
+        }
+
         // UI Control Functions
         let currentListeningDevice = null;
         let isMicrophoneActive = false;
