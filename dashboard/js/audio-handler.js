@@ -126,38 +126,44 @@ class DashboardAudioHandler {
     }
 
     async initializeOpus() {
-        // For now, we'll use a simple PCM approach
-        // In production, integrate opus.js or libopus.js
-        this.opusReady = true;
-
-        // Placeholder for Opus encoder
-        this.opusEncoder = {
-            encode: (pcmData) => {
-                // Simple compression placeholder
-                // In real implementation, use actual Opus encoding
-                const compressed = new Uint8Array(pcmData.length / 2);
-                for (let i = 0; i < compressed.length; i++) {
-                    compressed[i] = Math.floor((pcmData[i * 2] + pcmData[i * 2 + 1]) / 2 / 256 + 128);
-                }
-                return compressed;
+        try {
+            // Wait for libopus to be loaded
+            if (typeof libopus === 'undefined') {
+                console.log('Waiting for libopus to load...');
+                await new Promise((resolve) => {
+                    const checkInterval = setInterval(() => {
+                        if (typeof libopus !== 'undefined') {
+                            clearInterval(checkInterval);
+                            resolve();
+                        }
+                    }, 100);
+                });
             }
-        };
 
-        // Placeholder for Opus decoder
-        this.opusDecoder = {
-            decode: (opusData) => {
-                // Simple decompression placeholder
-                const pcm = new Int16Array(opusData.length * 2);
-                for (let i = 0; i < opusData.length; i++) {
-                    const sample = (opusData[i] - 128) * 256;
-                    pcm[i * 2] = sample;
-                    pcm[i * 2 + 1] = sample;
-                }
-                return pcm;
-            }
-        };
+            // Initialize Opus encoder with ESP32-matching settings
+            // Parameters: channels, samplerate, bitrate, frame_duration_ms, voice_optimization
+            this.opusEncoder = new libopus.Encoder(
+                1,      // 1 channel (mono)
+                16000,  // 16kHz sample rate
+                16000,  // 16kbps bitrate
+                20,     // 20ms frame duration
+                true    // Voice optimization (OPUS_APPLICATION_VOIP)
+            );
 
-        console.log('Opus codec initialized (using placeholder)');
+            // Initialize Opus decoder
+            // Parameters: channels, samplerate
+            this.opusDecoder = new libopus.Decoder(
+                1,      // 1 channel (mono)
+                16000   // 16kHz sample rate
+            );
+
+            this.opusReady = true;
+            console.log('Opus codec initialized with libopusjs (16kHz mono, 16kbps, 20ms frames)');
+
+        } catch (error) {
+            console.error('Failed to initialize Opus codec:', error);
+            this.opusReady = false;
+        }
     }
 
     // ============= MP3 File Upload and Streaming =============
@@ -371,22 +377,37 @@ class DashboardAudioHandler {
     }
 
     handleReceivedAudio(message) {
-        // Decode Opus data
-        const opusData = Uint8Array.from(atob(message.opus), c => c.charCodeAt(0));
-        const pcmData = this.opusDecoder.decode(opusData);
+        try {
+            // Decode base64 Opus data to Uint8Array
+            const opusData = Uint8Array.from(atob(message.opus), c => c.charCodeAt(0));
 
-        // Add to playback queue
-        this.playbackQueue.push(pcmData);
-        this.stats.packetsReceived++;
-        this.stats.bytesReceived += opusData.length;
+            // Input Opus packet to decoder
+            this.opusDecoder.input(opusData);
 
-        // Start playback if not already playing
-        if (!this.isPlaying) {
-            this.startPlayback();
+            // Get decoded PCM samples (Int16Array)
+            const pcmData = this.opusDecoder.output();
+
+            if (!pcmData || pcmData.length === 0) {
+                console.warn('Opus decoder returned empty data');
+                return;
+            }
+
+            // Add to playback queue
+            this.playbackQueue.push(pcmData);
+            this.stats.packetsReceived++;
+            this.stats.bytesReceived += opusData.length;
+
+            // Start playback if not already playing
+            if (!this.isPlaying) {
+                this.startPlayback();
+            }
+
+            // Update visualization
+            this.updateWaveform(pcmData);
+
+        } catch (error) {
+            console.error('Error decoding audio packet:', error);
         }
-
-        // Update visualization
-        this.updateWaveform(pcmData);
     }
 
     async startPlayback() {
@@ -425,23 +446,40 @@ class DashboardAudioHandler {
     sendAudioPacket(pcmData, targetDevice) {
         if (!this.isConnected || !this.opusReady) return;
 
-        // Encode audio
-        const opusData = this.opusEncoder.encode(pcmData);
+        try {
+            // libopusjs expects Int16Array input for encoding
+            // Input the PCM samples (must be exactly frameSize samples)
+            this.opusEncoder.input(pcmData);
 
-        // Send via WebSocket
-        const message = {
-            type: 'audio_packet',
-            from: 'DSH',
-            to: targetDevice,
-            sequence: this.sequenceNumber++,
-            opus: btoa(String.fromCharCode(...opusData)),
-            timestamp: Date.now()
-        };
+            // Get the encoded Opus packet
+            const opusData = this.opusEncoder.output();
 
-        this.ws.send(JSON.stringify(message));
+            if (!opusData || opusData.length === 0) {
+                console.warn('Opus encoder returned empty data');
+                return;
+            }
 
-        this.stats.packetsSent++;
-        this.stats.bytesSent += opusData.length;
+            // Convert Uint8Array to base64 for WebSocket transmission
+            const base64Opus = btoa(String.fromCharCode(...opusData));
+
+            // Send via WebSocket
+            const message = {
+                type: 'audio_packet',
+                from: 'DSH',
+                to: targetDevice,
+                sequence: this.sequenceNumber++,
+                opus: base64Opus,
+                timestamp: Date.now()
+            };
+
+            this.ws.send(JSON.stringify(message));
+
+            this.stats.packetsSent++;
+            this.stats.bytesSent += opusData.length;
+
+        } catch (error) {
+            console.error('Error encoding audio packet:', error);
+        }
     }
 
     // ============= Visualization =============

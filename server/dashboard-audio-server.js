@@ -8,6 +8,10 @@ const DashboardServer = require('./dashboard-server');
 const WebSocket = require('ws');
 const EventEmitter = require('events');
 
+// Note: Opus encoding/decoding happens in the browser (audio-handler.js)
+// The server just passes through the base64-encoded Opus packets
+// This avoids Node.js compatibility issues with WASM libraries
+
 class DashboardAudioServer extends DashboardServer {
     constructor(udpServer) {
         super(udpServer);
