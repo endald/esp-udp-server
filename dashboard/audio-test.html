@@ -436,7 +436,12 @@
     </div>
 
     <!-- Include audio handler -->
-    <!-- Load libopus WASM library first -->
+    <!-- Set the correct path for libopus.wasm before loading the library -->
+    <script>
+        // Tell libopus where to find the WASM file
+        window.LIBOPUS_WASM_URL = 'js/libopus.wasm';
+    </script>
+    <!-- Load libopus WASM library -->
     <script src="js/libopus.wasm.js"></script>
     <!-- Then load our audio handler -->
     <script src="js/audio-handler.js"></script>

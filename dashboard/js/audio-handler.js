@@ -141,11 +141,17 @@ class DashboardAudioHandler {
                 throw new Error('libopus failed to load after 5 seconds');
             }
 
-            // Wait for libopus to be ready (WASM compiled)
-            if (libopus.ready) {
-                await libopus.ready;
-                console.log('libopus WASM ready');
+            console.log('libopus loaded, waiting for WASM...');
+
+            // Wait for WASM to be fully loaded and ready
+            // libopus uses Module.ready promise
+            if (typeof Module !== 'undefined' && Module.ready) {
+                await Module.ready;
+                console.log('WASM Module ready');
             }
+
+            // Additional wait to ensure everything is initialized
+            await new Promise(resolve => setTimeout(resolve, 500));
 
             // Initialize Opus encoder with ESP32-matching settings
             // Parameters: channels, samplerate, bitrate, frame_duration_ms, voice_optimization
@@ -165,12 +171,18 @@ class DashboardAudioHandler {
             );
 
             this.opusReady = true;
-            console.log('Opus codec initialized with libopusjs (16kHz mono, 16kbps, 20ms frames)');
+            console.log('✅ Opus codec initialized with libopusjs (16kHz mono, 16kbps, 20ms frames)');
 
         } catch (error) {
             console.error('Failed to initialize Opus codec:', error);
-            console.error('Make sure libopus.wasm.js and libopus.wasm are loaded');
+            console.error('Make sure libopus.wasm.js and libopus.wasm are loaded from /js/ directory');
             this.opusReady = false;
+
+            // Retry initialization after 2 seconds
+            setTimeout(() => {
+                console.log('Retrying Opus initialization...');
+                this.initializeOpus();
+            }, 2000);
         }
     }
 
