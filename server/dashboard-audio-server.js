@@ -55,6 +55,9 @@ class DashboardAudioServer extends DashboardServer {
                 this.serveStaticFile(req, res);
             } else if (req.url.startsWith('/dashboard/')) {
                 this.serveStaticFile(req, res);
+            } else if (req.url.endsWith('.wasm')) {
+                // Handle WASM files from any path
+                this.serveStaticFile(req, res);
             } else {
                 res.writeHead(404);
                 res.end('Not Found');
@@ -311,7 +314,8 @@ class DashboardAudioServer extends DashboardServer {
             const contentType = {
                 '.js': 'application/javascript',
                 '.css': 'text/css',
-                '.html': 'text/html'
+                '.html': 'text/html',
+                '.wasm': 'application/wasm'  // Add WASM MIME type
             }[ext] || 'text/plain';
 
             res.writeHead(200, {'Content-Type': contentType});
