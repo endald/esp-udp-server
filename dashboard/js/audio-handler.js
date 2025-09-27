@@ -174,7 +174,7 @@ class DashboardAudioHandler {
             this.opusEncoder = new libopus.Encoder(
                 1,      // 1 channel (mono)
                 48000,  // 48kHz sample rate (increased from 16kHz for better quality)
-                48000,  // 48kbps bitrate
+                24000,  // 24kbps bitrate (reduced to prevent WiFi overload)
                 20,     // 20ms frame duration
                 true    // Voice optimization (OPUS_APPLICATION_VOIP)
             );
@@ -187,7 +187,7 @@ class DashboardAudioHandler {
             );
 
             this.opusReady = true;
-            console.log('✅ Opus codec initialized with libopusjs (48kHz mono, 48kbps, 20ms frames)');
+            console.log('✅ Opus codec initialized with libopusjs (48kHz mono, 24kbps, 20ms frames)');
 
         } catch (error) {
             console.error('Failed to initialize Opus codec:', error);
