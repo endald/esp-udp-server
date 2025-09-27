@@ -39,6 +39,9 @@ class DashboardAudioHandler {
         this.playbackQueue = [];
         this.isPlaying = false;
 
+        // Reconnection timeout tracker
+        this.reconnectTimeout = null;
+
         // Statistics
         this.stats = {
             packetsSent: 0,
@@ -62,8 +65,8 @@ class DashboardAudioHandler {
                 sampleRate: 48000 // Browser native rate, we'll resample
             });
 
-            // Initialize WebSocket connection
-            this.connectWebSocket();
+            // Initialize WebSocket connection with delay to ensure server is ready
+            setTimeout(() => this.connectWebSocket(), 1000);
 
             // Load Opus codec (using simple fallback for now)
             await this.initializeOpus();
@@ -79,31 +82,44 @@ class DashboardAudioHandler {
 
     connectWebSocket() {
         const wsUrl = `ws://${window.location.hostname}:8082`;
-        this.ws = new WebSocket(wsUrl);
+        console.log('Attempting WebSocket connection to:', wsUrl);
 
-        this.ws.onopen = () => {
-            console.log('Connected to audio WebSocket server');
-            this.isConnected = true;
-            this.updateStatus('Connected', 'success');
-        };
+        try {
+            this.ws = new WebSocket(wsUrl);
 
-        this.ws.onmessage = (event) => {
-            const message = JSON.parse(event.data);
-            this.handleWebSocketMessage(message);
-        };
+            this.ws.onopen = () => {
+                console.log('✅ Connected to audio WebSocket server');
+                this.isConnected = true;
+                this.updateStatus('Connected', 'success');
+            };
 
-        this.ws.onclose = () => {
-            console.log('Disconnected from audio WebSocket server');
-            this.isConnected = false;
-            this.updateStatus('Disconnected', 'error');
+            this.ws.onmessage = (event) => {
+                const message = JSON.parse(event.data);
+                this.handleWebSocketMessage(message);
+            };
 
-            // Attempt reconnection after 3 seconds
-            setTimeout(() => this.connectWebSocket(), 3000);
-        };
+            this.ws.onclose = (event) => {
+                console.log('WebSocket closed. Code:', event.code, 'Reason:', event.reason);
+                this.isConnected = false;
+                this.updateStatus('Disconnected - Retrying...', 'warning');
 
-        this.ws.onerror = (error) => {
-            console.error('WebSocket error:', error);
-        };
+                // Attempt reconnection after 3 seconds
+                if (!this.reconnectTimeout) {
+                    this.reconnectTimeout = setTimeout(() => {
+                        this.reconnectTimeout = null;
+                        this.connectWebSocket();
+                    }, 3000);
+                }
+            };
+
+            this.ws.onerror = (error) => {
+                console.warn('WebSocket connection error. Server may be starting up or port 8082 may be blocked.');
+                this.updateStatus('Connection error - Retrying...', 'warning');
+            };
+        } catch (error) {
+            console.error('Failed to create WebSocket:', error);
+            this.updateStatus('WebSocket unavailable', 'error');
+        }
     }
 
     handleWebSocketMessage(message) {

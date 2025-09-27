@@ -526,13 +526,16 @@
 
         // Routing Controls
         function setRoute(from, to) {
-            if (audioHandler && audioHandler.ws) {
+            if (audioHandler && audioHandler.ws && audioHandler.ws.readyState === WebSocket.OPEN) {
                 audioHandler.ws.send(JSON.stringify({
                     type: 'set_route',
                     from: from,
                     to: to
                 }));
                 console.log(`Route set: ${from} → ${to}`);
+            } else {
+                console.warn('WebSocket not ready. Please wait for connection...');
+                alert('WebSocket connecting... Please try again in a few seconds.');
             }
         }
 
