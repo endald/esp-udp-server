@@ -27,10 +27,10 @@ class DashboardAudioHandler {
         this.opusReady = false;
 
         // Audio parameters (matching ESP32)
-        this.sampleRate = 16000;
+        this.sampleRate = 48000;  // Changed to 48kHz for better quality
         this.channels = 1;
         this.frameDuration = 20; // ms
-        this.frameSize = (this.sampleRate * this.frameDuration) / 1000; // 320 samples
+        this.frameSize = (this.sampleRate * this.frameDuration) / 1000; // 960 samples at 48kHz
 
         // Sequence numbering
         this.sequenceNumber = 0;
@@ -62,7 +62,7 @@ class DashboardAudioHandler {
         try {
             // Initialize Web Audio API
             this.audioContext = new (window.AudioContext || window.webkitAudioContext)({
-                sampleRate: 48000 // Browser native rate, we'll resample
+                sampleRate: 48000 // Matches our Opus codec sample rate
             });
 
             // Initialize WebSocket connection with delay to ensure server is ready
@@ -173,8 +173,8 @@ class DashboardAudioHandler {
             // Parameters: channels, samplerate, bitrate, frame_duration_ms, voice_optimization
             this.opusEncoder = new libopus.Encoder(
                 1,      // 1 channel (mono)
-                16000,  // 16kHz sample rate
-                48000,  // 48kbps bitrate (increased from 16kbps for better quality)
+                48000,  // 48kHz sample rate (increased from 16kHz for better quality)
+                48000,  // 48kbps bitrate
                 20,     // 20ms frame duration
                 true    // Voice optimization (OPUS_APPLICATION_VOIP)
             );
@@ -183,11 +183,11 @@ class DashboardAudioHandler {
             // Parameters: channels, samplerate
             this.opusDecoder = new libopus.Decoder(
                 1,      // 1 channel (mono)
-                16000   // 16kHz sample rate
+                48000   // 48kHz sample rate (increased from 16kHz)
             );
 
             this.opusReady = true;
-            console.log('✅ Opus codec initialized with libopusjs (16kHz mono, 48kbps, 20ms frames)');
+            console.log('✅ Opus codec initialized with libopusjs (48kHz mono, 48kbps, 20ms frames)');
 
         } catch (error) {
             console.error('Failed to initialize Opus codec:', error);
@@ -220,8 +220,8 @@ class DashboardAudioHandler {
             // Decode audio file
             const audioBuffer = await this.audioContext.decodeAudioData(arrayBuffer);
 
-            // Convert to mono 16kHz
-            const monoData = this.convertToMono16kHz(audioBuffer);
+            // Convert to mono 48kHz
+            const monoData = this.convertToMono48kHz(audioBuffer);
 
             // Stream in 20ms chunks
             await this.streamAudioData(monoData, targetDevice);
@@ -233,7 +233,7 @@ class DashboardAudioHandler {
         }
     }
 
-    convertToMono16kHz(audioBuffer) {
+    convertToMono48kHz(audioBuffer) {
         // Get the first channel (mono)
         const channelData = audioBuffer.getChannelData(0);
 
