@@ -106,7 +106,7 @@ Packet Types:
     "sampleRate": 16000,       // Audio sample rate (Hz)
     "channels": 1,             // Mono audio
     "frameDuration": 20,       // Frame size (ms)
-    "opusBitrate": 16000      // Opus bitrate (bps)
+    "opusBitrate": 48000      // Opus bitrate (bps) - increased for better quality
   }
 }
 ```
