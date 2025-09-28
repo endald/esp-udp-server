@@ -7,7 +7,7 @@
     "bufferSize": 65536
   },
   "audio": {
-    "sampleRate": 32000,
+    "sampleRate": 16000,
     "channels": 1,
     "frameDuration": 20,
     "opusBitrate": 64000,
