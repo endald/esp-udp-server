@@ -10,7 +10,7 @@
     "sampleRate": 16000,
     "channels": 1,
     "frameDuration": 20,
-    "opusBitrate": 16000,
+    "opusBitrate": 24000,
     "jitterBufferSize": 5
   },
   "websocket": {
