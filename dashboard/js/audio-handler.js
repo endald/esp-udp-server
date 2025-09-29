@@ -259,8 +259,14 @@ class DashboardAudioHandler {
     async streamAudioData(audioData, targetDevice) {
         const totalFrames = Math.floor(audioData.length / this.frameSize);
 
+        // Use performance timer for better accuracy
+        const startTime = performance.now();
+
         for (let i = 0; i < totalFrames; i++) {
             if (!this.isStreamingFile) break;
+
+            // Calculate when this frame should be sent
+            const targetTime = startTime + (i * this.frameDuration);
 
             // Extract frame
             const frameStart = i * this.frameSize;
@@ -276,8 +282,17 @@ class DashboardAudioHandler {
             // Encode and send
             this.sendAudioPacket(pcmData, targetDevice);
 
-            // Wait 20ms before sending next frame
-            await new Promise(resolve => setTimeout(resolve, this.frameDuration));
+            // Wait until the target time for next frame
+            const currentTime = performance.now();
+            const waitTime = targetTime + this.frameDuration - currentTime;
+
+            if (waitTime > 0) {
+                // Use setTimeout with compensation for drift
+                await new Promise(resolve => setTimeout(resolve, Math.floor(waitTime)));
+            } else if (waitTime < -5) {
+                // Log if we're falling behind significantly
+                console.warn(`Audio streaming falling behind by ${-waitTime}ms`);
+            }
         }
 
         console.log('Finished streaming file');
@@ -319,6 +334,7 @@ class DashboardAudioHandler {
 
             // Audio processing buffer
             let audioBuffer = new Float32Array(0);
+            let lastFrameTime = performance.now();
 
             this.scriptProcessor.onaudioprocess = (event) => {
                 if (!this.isMicrophoneActive) return;
@@ -331,8 +347,17 @@ class DashboardAudioHandler {
                 newBuffer.set(inputData, audioBuffer.length);
                 audioBuffer = newBuffer;
 
-                // Process complete frames
+                // Process complete frames with timing control
+                const currentTime = performance.now();
+
                 while (audioBuffer.length >= this.frameSize) {
+                    // Check if enough time has passed since last frame (prevent bursts)
+                    const timeSinceLastFrame = currentTime - lastFrameTime;
+                    if (timeSinceLastFrame < this.frameDuration - 2) {
+                        // Too soon, wait for next callback
+                        break;
+                    }
+
                     const frame = audioBuffer.slice(0, this.frameSize);
                     audioBuffer = audioBuffer.slice(this.frameSize);
 
@@ -344,6 +369,7 @@ class DashboardAudioHandler {
 
                     // Send audio packet
                     this.sendAudioPacket(pcmData, targetDevice);
+                    lastFrameTime = currentTime;
                 }
             };
 
@@ -473,6 +499,10 @@ class DashboardAudioHandler {
 
         this.isPlaying = true;
 
+        // Use performance timer for accurate playback timing
+        const startTime = performance.now();
+        let frameIndex = 0;
+
         while (this.playbackQueue.length > 0) {
             const pcmData = this.playbackQueue.shift();
 
@@ -486,14 +516,33 @@ class DashboardAudioHandler {
             const audioBuffer = this.audioContext.createBuffer(1, floatData.length, this.sampleRate);
             audioBuffer.getChannelData(0).set(floatData);
 
-            // Play audio
+            // Calculate precise start time for this frame
+            const frameTime = startTime + (frameIndex * this.frameDuration);
+            const scheduleTime = (frameTime - performance.now()) / 1000; // Convert to seconds
+
+            // Play audio at scheduled time
             const source = this.audioContext.createBufferSource();
             source.buffer = audioBuffer;
             source.connect(this.audioContext.destination);
-            source.start();
 
-            // Wait for frame duration
-            await new Promise(resolve => setTimeout(resolve, this.frameDuration));
+            if (scheduleTime > 0) {
+                // Schedule future playback
+                source.start(this.audioContext.currentTime + scheduleTime);
+            } else {
+                // Play immediately if we're behind
+                source.start();
+            }
+
+            frameIndex++;
+
+            // Wait for frame duration with drift compensation
+            const currentTime = performance.now();
+            const nextFrameTime = startTime + (frameIndex * this.frameDuration);
+            const waitTime = nextFrameTime - currentTime;
+
+            if (waitTime > 0) {
+                await new Promise(resolve => setTimeout(resolve, Math.floor(waitTime)));
+            }
         }
 
         this.isPlaying = false;

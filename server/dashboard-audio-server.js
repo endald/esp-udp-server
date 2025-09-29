@@ -7,6 +7,7 @@
 const DashboardServer = require('./dashboard-server');
 const WebSocket = require('ws');
 const EventEmitter = require('events');
+const PacketPacer = require('./packet-pacer');
 
 // Note: Opus encoding/decoding happens in the browser (audio-handler.js)
 // The server just passes through the base64-encoded Opus packets
@@ -19,6 +20,9 @@ class DashboardAudioServer extends DashboardServer {
         this.wsServer = null;
         this.wsClients = new Set();
         this.audioEventEmitter = new EventEmitter();
+
+        // Initialize packet pacer for smooth audio delivery
+        this.packetPacer = new PacketPacer(udpServer);
 
         // Register dashboard as virtual device
         this.registerVirtualDevice();
@@ -188,11 +192,25 @@ class DashboardAudioServer extends DashboardServer {
         // Route through existing audio router
         const targetDevice = this.udpServer.deviceManager.getDevice(message.to);
         if (targetDevice && targetDevice.online) {
-            this.udpServer.sendToDevice(targetDevice, packet);
+            // Get virtual dashboard device
+            const dashboardDevice = this.udpServer.deviceManager.getDevice('DSH');
+
+            // Use packet pacer for dashboard to ESP32 audio
+            if (this.packetPacer && this.packetPacer.shouldUsePacer('DSH', message.to)) {
+                // Buffer packet for paced delivery (smooth 20ms intervals)
+                this.packetPacer.bufferPacket(packet, dashboardDevice, targetDevice);
+            } else {
+                // Direct send for non-audio or ESP32-to-ESP32
+                this.udpServer.sendToDevice(targetDevice, packet);
+            }
+
             this.audioStats.packetsFromDashboard++;
             this.audioStats.bytesFromDashboard += packet.length;
 
-            console.log(`🎵 Dashboard → ${message.to}: ${opusData.length} bytes`);
+            // Log less frequently to reduce console noise
+            if (this.audioStats.packetsFromDashboard % 50 === 0) {
+                console.log(`🎵 Dashboard → ${message.to}: ${this.audioStats.packetsFromDashboard} packets sent`);
+            }
         } else {
             console.warn(`Target device ${message.to} not found or offline`);
         }
@@ -351,6 +369,11 @@ class DashboardAudioServer extends DashboardServer {
         if (this.wsServer) {
             this.wsServer.close();
             console.log('WebSocket audio server stopped');
+        }
+
+        if (this.packetPacer) {
+            this.packetPacer.stop();
+            console.log('Packet pacer stopped');
         }
     }
 }
