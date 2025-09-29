@@ -103,10 +103,10 @@ Packet Types:
     "maxPacketSize": 512       // Maximum UDP packet size
   },
   "audio": {
-    "sampleRate": 16000,       // Audio sample rate (Hz)
+    "sampleRate": 48000,       // Audio sample rate (Hz)
     "channels": 1,             // Mono audio
     "frameDuration": 20,       // Frame size (ms)
-    "opusBitrate": 64000      // Opus bitrate (bps)
+    "opusBitrate": 128000     // Opus bitrate (bps)
   }
 }
 ```

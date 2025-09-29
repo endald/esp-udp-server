@@ -27,10 +27,10 @@ class DashboardAudioHandler {
         this.opusReady = false;
 
         // Audio parameters (matching ESP32)
-        this.sampleRate = 16000;  // 16kHz sample rate
+        this.sampleRate = 48000;  // 48kHz sample rate
         this.channels = 1;
         this.frameDuration = 20; // ms
-        this.frameSize = (this.sampleRate * this.frameDuration) / 1000; // 320 samples at 16kHz
+        this.frameSize = (this.sampleRate * this.frameDuration) / 1000; // 960 samples at 48kHz
 
         // Sequence numbering
         this.sequenceNumber = 0;
@@ -173,8 +173,8 @@ class DashboardAudioHandler {
             // Parameters: channels, samplerate, bitrate, frame_duration_ms, voice_optimization
             this.opusEncoder = new libopus.Encoder(
                 1,      // 1 channel (mono)
-                16000,  // 16kHz sample rate
-                64000,  // 64kbps bitrate
+                48000,  // 48kHz sample rate
+                128000, // 128kbps bitrate
                 20,     // 20ms frame duration
                 true    // Voice optimization (OPUS_APPLICATION_VOIP)
             );
@@ -183,11 +183,11 @@ class DashboardAudioHandler {
             // Parameters: channels, samplerate
             this.opusDecoder = new libopus.Decoder(
                 1,      // 1 channel (mono)
-                16000   // 16kHz sample rate
+                48000   // 48kHz sample rate
             );
 
             this.opusReady = true;
-            console.log('✅ Opus codec initialized with libopusjs (16kHz mono, 64kbps, 20ms frames)');
+            console.log('✅ Opus codec initialized with libopusjs (48kHz mono, 128kbps, 20ms frames)');
 
         } catch (error) {
             console.error('Failed to initialize Opus codec:', error);
@@ -220,8 +220,8 @@ class DashboardAudioHandler {
             // Decode audio file
             const audioBuffer = await this.audioContext.decodeAudioData(arrayBuffer);
 
-            // Convert to mono 16kHz
-            const monoData = this.convertToMono16kHz(audioBuffer);
+            // Convert to mono 48kHz
+            const monoData = this.convertToMono48kHz(audioBuffer);
 
             // Stream in 20ms chunks
             await this.streamAudioData(monoData, targetDevice);
@@ -233,7 +233,7 @@ class DashboardAudioHandler {
         }
     }
 
-    convertToMono16kHz(audioBuffer) {
+    convertToMono48kHz(audioBuffer) {
         // Get the first channel (mono)
         const channelData = audioBuffer.getChannelData(0);
 

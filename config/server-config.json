@@ -7,10 +7,10 @@
     "bufferSize": 65536
   },
   "audio": {
-    "sampleRate": 16000,
+    "sampleRate": 48000,
     "channels": 1,
     "frameDuration": 20,
-    "opusBitrate": 64000,
+    "opusBitrate": 128000,
     "jitterBufferSize": 5
   },
   "websocket": {
