@@ -202,6 +202,26 @@ class DashboardAudioHandler {
         }
     }
 
+    // ============= Audio Protection =============
+
+    /**
+     * Simple soft limiter to protect 3W 4Ohm speaker from damage
+     * Uses gentle tanh compression to prevent harsh clipping
+     * @param {number} sample - Normalized audio sample (-1 to 1)
+     * @returns {number} Limited sample
+     */
+    limitAudio(sample) {
+        const limit = 0.85; // 85% max (-1.5dB) to protect 3W speaker
+
+        // Apply soft limiting only when approaching limits
+        if (Math.abs(sample) > limit) {
+            // Tanh provides smooth compression near limits
+            return Math.tanh(sample * 0.9) * limit;
+        }
+
+        return sample; // Pass through normal levels unchanged
+    }
+
     // ============= MP3 File Upload and Streaming =============
 
     async uploadAndStreamMP3(file, targetDevice) {
@@ -273,10 +293,12 @@ class DashboardAudioHandler {
             const frameEnd = frameStart + this.frameSize;
             const frame = audioData.slice(frameStart, frameEnd);
 
-            // Convert to Int16
+            // Convert to Int16 with limiting for speaker protection
             const pcmData = new Int16Array(this.frameSize);
             for (let j = 0; j < this.frameSize; j++) {
-                pcmData[j] = Math.floor(frame[j] * 32767);
+                // Apply soft limiter before conversion
+                const limited = this.limitAudio(frame[j]);
+                pcmData[j] = Math.floor(limited * 32767);
             }
 
             // Encode and send
@@ -361,10 +383,12 @@ class DashboardAudioHandler {
                     const frame = audioBuffer.slice(0, this.frameSize);
                     audioBuffer = audioBuffer.slice(this.frameSize);
 
-                    // Convert to Int16
+                    // Convert to Int16 with limiting for speaker protection
                     const pcmData = new Int16Array(this.frameSize);
                     for (let i = 0; i < this.frameSize; i++) {
-                        pcmData[i] = Math.floor(frame[i] * 32767);
+                        // Apply soft limiter before conversion
+                        const limited = this.limitAudio(frame[i]);
+                        pcmData[i] = Math.floor(limited * 32767);
                     }
 
                     // Send audio packet
