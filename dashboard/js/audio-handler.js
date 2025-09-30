@@ -205,13 +205,18 @@ class DashboardAudioHandler {
     // ============= Audio Protection =============
 
     /**
-     * Simple soft limiter to protect 3W 4Ohm speaker from damage
-     * Uses gentle tanh compression to prevent harsh clipping
+     * Soft limiter to protect 3W 4Ohm speaker from damage and prevent clipping
+     * Uses input gain reduction AND lower threshold for proper headroom
      * @param {number} sample - Normalized audio sample (-1 to 1)
-     * @returns {number} Limited sample
+     * @returns {number} Limited sample with proper headroom
      */
     limitAudio(sample) {
-        const limit = 0.85; // 85% max (-1.5dB) to protect 3W speaker
+        // Pre-gain reduction to prevent hot signals from clipping
+        const INPUT_GAIN = 0.75;  // Reduce input by 25% for headroom
+        sample = sample * INPUT_GAIN;
+
+        // Lower threshold for more aggressive limiting (70% = -3dB headroom)
+        const limit = 0.70; // 70% max amplitude to prevent clipping
 
         // Apply soft limiting only when approaching limits
         if (Math.abs(sample) > limit) {

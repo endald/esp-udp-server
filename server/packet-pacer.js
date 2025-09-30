@@ -23,6 +23,11 @@ class PacketPacer {
         this.MAX_BUFFER_SIZE = 10; // Max 10 packets (200ms) in buffer
         this.MAX_LATENCY = 100;    // Max 100ms initial latency
 
+        // Global timing control to prevent packet bursts
+        this.lastGlobalSendTime = 0;
+        this.currentQueueIndex = 0;
+        this.lastPacketSendTime = 0; // For timing diagnostics
+
         // Statistics
         this.stats = {
             packetsReceived: 0,
@@ -102,60 +107,88 @@ class PacketPacer {
 
     /**
      * Send packets that are scheduled for transmission
+     * FIXED: Only sends ONE packet per interval to prevent bursts
      */
     sendScheduledPackets() {
         const now = Date.now();
 
-        for (const [queueKey, queue] of this.queues.entries()) {
-            // Check if it's time to send the next packet
-            if (queue.packets.length === 0) continue;
+        // Enforce global timing - only one packet per 20ms interval
+        if (this.lastGlobalSendTime && (now - this.lastGlobalSendTime) < this.PACKET_INTERVAL - 2) {
+            return; // Too soon, skip this interval
+        }
 
-            // Ensure minimum interval between packets
-            if (queue.lastSendTime && (now - queue.lastSendTime) < this.PACKET_INTERVAL) {
-                continue;
-            }
+        // Get all queue keys for round-robin processing
+        const queueKeys = Array.from(this.queues.keys());
+        if (queueKeys.length === 0) return;
+
+        // Try each queue starting from current index (round-robin)
+        for (let i = 0; i < queueKeys.length; i++) {
+            const index = (this.currentQueueIndex + i) % queueKeys.length;
+            const queueKey = queueKeys[index];
+            const queue = this.queues.get(queueKey);
+
+            // Skip empty queues
+            if (!queue || queue.packets.length === 0) continue;
 
             // Get the oldest packet
             const packet = queue.packets[0];
+            const age = now - packet.timestamp;
 
             // Wait for initial buffering (prevents underrun on stream start)
-            const age = now - packet.timestamp;
             if (queue.packets.length < 3 && age < 40) {
-                // Wait for more packets to build up initial buffer
-                continue;
+                continue; // Need more packets in buffer
             }
 
             // Check if packet is too old (> MAX_LATENCY)
             if (age > this.MAX_LATENCY) {
-                // Log jitter event but still send the packet
                 this.stats.jitterEvents++;
                 if (this.stats.jitterEvents % 10 === 1) {
-                    console.log(`⚠️ High latency detected: ${age}ms for ${queueKey}`);
+                    console.log(`⚠️ High latency: ${age}ms for ${queueKey}`);
                 }
             }
 
-            // Remove packet from queue and send it
+            // Remove and send this ONE packet
             queue.packets.shift();
 
             // Send packet via UDP server
             if (this.udpServer && queue.toDevice) {
                 try {
                     this.udpServer.sendToDevice(queue.toDevice, packet.data);
+
+                    // Update all timing trackers
+                    this.lastGlobalSendTime = now;
                     queue.lastSendTime = now;
                     this.stats.packetsSent++;
 
-                    // Log every 100th packet for monitoring
-                    if (this.stats.packetsSent % 100 === 0) {
-                        console.log(`📊 Pacer stats: Sent=${this.stats.packetsSent}, ` +
-                                  `Buffered=${queue.packets.length}, ` +
-                                  `Dropped=${this.stats.packetsDropped}, ` +
-                                  `Jitter=${this.stats.jitterEvents}`);
+                    // Timing diagnostics - check interval consistency
+                    if (this.lastPacketSendTime) {
+                        const interval = now - this.lastPacketSendTime;
+                        if (interval < 15 || interval > 25) {
+                            console.log(`⚠️ Packet timing: ${interval}ms (expected 20ms)`);
+                        }
                     }
+                    this.lastPacketSendTime = now;
+
+                    // Move to next queue for next interval (round-robin)
+                    this.currentQueueIndex = (index + 1) % queueKeys.length;
+
+                    // Log every 50th packet for monitoring
+                    if (this.stats.packetsSent % 50 === 0) {
+                        console.log(`📊 Pacer: Sent=${this.stats.packetsSent}, Queue=${queueKey}, ` +
+                                  `Buffered=${queue.packets.length}, Dropped=${this.stats.packetsDropped}`);
+                    }
+
+                    // CRITICAL: Only send ONE packet per interval
+                    return;
+
                 } catch (error) {
                     console.error(`Failed to send paced packet: ${error.message}`);
                 }
             }
         }
+
+        // If we get here, no packets were sent - advance queue index anyway
+        this.currentQueueIndex = (this.currentQueueIndex + 1) % Math.max(queueKeys.length, 1);
     }
 
     /**
