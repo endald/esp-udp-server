@@ -137,9 +137,21 @@ class PacketPacer {
         }
         this.lastIntervalFire = now;
 
-        // Enforce global timing - only one packet per 20ms interval
-        if (this.lastGlobalSendTime && (now - this.lastGlobalSendTime) < this.PACKET_INTERVAL - 2) {
-            return; // Too soon, skip this interval
+        // Check if we need to catch up (packets getting old)
+        let needsCatchup = false;
+        for (const [queueKey, queue] of this.queues.entries()) {
+            if (queue.packets.length > 0) {
+                const oldestAge = now - queue.packets[0].timestamp;
+                if (oldestAge > 60) { // If any packet is older than 60ms
+                    needsCatchup = true;
+                    break;
+                }
+            }
+        }
+
+        // Enforce global timing - but allow catch-up when behind
+        if (!needsCatchup && this.lastGlobalSendTime && (now - this.lastGlobalSendTime) < this.PACKET_INTERVAL - 2) {
+            return; // Too soon, skip this interval (unless catching up)
         }
 
         // Get all queue keys for round-robin processing
@@ -169,9 +181,10 @@ class PacketPacer {
                 }
             }
 
-            // Reduced initial buffering for faster startup (was 3 packets + 40ms)
-            if (queue.packets.length < 2 && age < 20) {
-                continue; // Only wait for 2 packets or 20ms
+            // Initial buffering only for the very first packets
+            // After that, always send if we have packets
+            if (this.stats.packetsSent === 0 && queue.packets.length < 2 && age < 20) {
+                continue; // Only buffer at the very start
             }
 
             // Check if packet is too old (> MAX_LATENCY)
