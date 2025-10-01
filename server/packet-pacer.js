@@ -27,13 +27,23 @@ class PacketPacer {
         this.lastGlobalSendTime = 0;
         this.currentQueueIndex = 0;
         this.lastPacketSendTime = 0; // For timing diagnostics
+        this.lastIntervalFire = 0;   // Track setInterval health
+
+        // Comprehensive timing tracking
+        this.timingHistory = [];      // Store last 100 packet timings
+        this.timingViolations = [];   // Store timing problems
+        this.dashboardCallback = null; // Callback to send data to dashboard
+        this.intervalHealth = [];      // Track setInterval performance
 
         // Statistics
         this.stats = {
             packetsReceived: 0,
             packetsSent: 0,
             packetsDropped: 0,
-            jitterEvents: 0
+            jitterEvents: 0,
+            avgInterval: 0,
+            minInterval: 999,
+            maxInterval: 0
         };
 
         // Start the pacing timer
@@ -107,10 +117,21 @@ class PacketPacer {
 
     /**
      * Send packets that are scheduled for transmission
-     * FIXED: Only sends ONE packet per interval to prevent bursts
+     * ENHANCED: With comprehensive timing diagnostics
      */
     sendScheduledPackets() {
         const now = Date.now();
+
+        // Track setInterval health
+        if (this.lastIntervalFire > 0) {
+            const intervalDrift = now - (this.lastIntervalFire + this.PACKET_INTERVAL);
+            if (Math.abs(intervalDrift) > 10) {
+                const warning = `⚠️ SetInterval drift: ${intervalDrift}ms (system overload?)`;
+                console.warn(warning);
+                this.recordViolation('interval_drift', intervalDrift, null);
+            }
+        }
+        this.lastIntervalFire = now;
 
         // Enforce global timing - only one packet per 20ms interval
         if (this.lastGlobalSendTime && (now - this.lastGlobalSendTime) < this.PACKET_INTERVAL - 2) {
@@ -134,6 +155,12 @@ class PacketPacer {
             const packet = queue.packets[0];
             const age = now - packet.timestamp;
 
+            // Check queue depth
+            if (queue.packets.length > 5) {
+                console.warn(`📦 Queue buildup: ${queueKey} has ${queue.packets.length} packets waiting`);
+                this.recordViolation('queue_buildup', queue.packets.length, queueKey);
+            }
+
             // Wait for initial buffering (prevents underrun on stream start)
             if (queue.packets.length < 3 && age < 40) {
                 continue; // Need more packets in buffer
@@ -142,9 +169,8 @@ class PacketPacer {
             // Check if packet is too old (> MAX_LATENCY)
             if (age > this.MAX_LATENCY) {
                 this.stats.jitterEvents++;
-                if (this.stats.jitterEvents % 10 === 1) {
-                    console.log(`⚠️ High latency: ${age}ms for ${queueKey}`);
-                }
+                console.warn(`🔴 Extreme latency: ${age}ms for ${queueKey} (packet age)`);
+                this.recordViolation('high_latency', age, queueKey);
             }
 
             // Remove and send this ONE packet
@@ -160,11 +186,18 @@ class PacketPacer {
                     queue.lastSendTime = now;
                     this.stats.packetsSent++;
 
-                    // Timing diagnostics - check interval consistency
+                    // Comprehensive timing diagnostics
                     if (this.lastPacketSendTime) {
                         const interval = now - this.lastPacketSendTime;
+
+                        // Update statistics
+                        this.updateTimingStats(interval);
+
+                        // Log significant violations
                         if (interval < 15 || interval > 25) {
-                            console.log(`⚠️ Packet timing: ${interval}ms (expected 20ms)`);
+                            const severity = interval > 50 ? '🔴' : interval > 30 ? '🟡' : '⚠️';
+                            console.log(`${severity} Packet interval: ${interval}ms (expected 20ms) for ${queueKey}`);
+                            this.recordViolation('packet_interval', interval, queueKey);
                         }
                     }
                     this.lastPacketSendTime = now;
@@ -192,6 +225,76 @@ class PacketPacer {
     }
 
     /**
+     * Record a timing violation for dashboard display
+     * @param {string} type - Type of violation
+     * @param {number} value - Timing value or count
+     * @param {string} queueKey - Which queue had the issue
+     */
+    recordViolation(type, value, queueKey) {
+        const violation = {
+            timestamp: Date.now(),
+            type,
+            value,
+            queueKey,
+            time: new Date().toISOString()
+        };
+
+        // Store in history (keep last 100)
+        this.timingViolations.push(violation);
+        if (this.timingViolations.length > 100) {
+            this.timingViolations.shift();
+        }
+
+        // Send to dashboard immediately
+        if (this.dashboardCallback) {
+            this.dashboardCallback({
+                type: 'timing_violation',
+                violation,
+                stats: this.stats
+            });
+        }
+    }
+
+    /**
+     * Update timing statistics
+     * @param {number} interval - Latest packet interval
+     */
+    updateTimingStats(interval) {
+        // Add to history
+        this.timingHistory.push({
+            timestamp: Date.now(),
+            interval
+        });
+
+        // Keep only last 100
+        if (this.timingHistory.length > 100) {
+            this.timingHistory.shift();
+        }
+
+        // Update min/max
+        if (interval < this.stats.minInterval) {
+            this.stats.minInterval = interval;
+        }
+        if (interval > this.stats.maxInterval) {
+            this.stats.maxInterval = interval;
+        }
+
+        // Calculate average
+        const recent = this.timingHistory.slice(-20);
+        const sum = recent.reduce((acc, h) => acc + h.interval, 0);
+        this.stats.avgInterval = Math.round(sum / recent.length);
+
+        // Send update to dashboard
+        if (this.dashboardCallback && this.stats.packetsSent % 5 === 0) {
+            this.dashboardCallback({
+                type: 'timing_update',
+                history: this.timingHistory.slice(-50),
+                stats: this.stats
+            });
+        }
+    }
+
+    /**
      * Get statistics for monitoring
      * @returns {Object} Current statistics
      */
@@ -207,7 +310,8 @@ class PacketPacer {
         return {
             ...this.stats,
             queues: queueStats,
-            uptime: this.pacerInterval ? 'running' : 'stopped'
+            uptime: this.pacerInterval ? 'running' : 'stopped',
+            recentViolations: this.timingViolations.slice(-10)
         };
     }
 

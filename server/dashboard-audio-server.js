@@ -24,6 +24,11 @@ class DashboardAudioServer extends DashboardServer {
         // Initialize packet pacer for smooth audio delivery
         this.packetPacer = new PacketPacer(udpServer);
 
+        // Set up callback to receive timing data from pacer
+        this.packetPacer.dashboardCallback = (timingData) => {
+            this.broadcastTimingData(timingData);
+        };
+
         // Register dashboard as virtual device
         this.registerVirtualDevice();
 
@@ -305,6 +310,19 @@ class DashboardAudioServer extends DashboardServer {
                 ws.send(data);
             }
         });
+    }
+
+    /**
+     * Broadcast timing data from packet pacer to dashboard
+     * @param {Object} timingData - Timing information from pacer
+     */
+    broadcastTimingData(timingData) {
+        const message = {
+            ...timingData,
+            timestamp: Date.now()
+        };
+
+        this.broadcast(message);
     }
 
     serveAudioTestPage(res) {

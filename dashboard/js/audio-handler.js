@@ -136,6 +136,14 @@ class DashboardAudioHandler {
                 this.updateStatistics(message.stats);
                 break;
 
+            case 'timing_update':
+                this.updateTimingDisplay(message);
+                break;
+
+            case 'timing_violation':
+                this.handleTimingViolation(message);
+                break;
+
             default:
                 console.log('Received message:', message);
         }
@@ -692,6 +700,171 @@ class DashboardAudioHandler {
 
     getStatistics() {
         return this.stats;
+    }
+
+    // ============= Timing Display =============
+
+    /**
+     * Update timing display with latest packet interval data
+     * @param {Object} data - Timing data from server
+     */
+    updateTimingDisplay(data) {
+        if (!data.stats) return;
+
+        // Update statistics
+        const currentEl = document.getElementById('current-interval');
+        const avgEl = document.getElementById('avg-interval');
+        const minEl = document.getElementById('min-interval');
+        const maxEl = document.getElementById('max-interval');
+
+        if (currentEl) {
+            currentEl.textContent = data.history && data.history.length > 0
+                ? `${data.history[data.history.length - 1].interval}ms`
+                : '--';
+        }
+
+        if (avgEl) {
+            avgEl.textContent = data.stats.avgInterval ? `${data.stats.avgInterval}ms` : '--';
+        }
+
+        if (minEl) {
+            minEl.textContent = data.stats.minInterval < 999 ? `${data.stats.minInterval}ms` : '--';
+        }
+
+        if (maxEl) {
+            maxEl.textContent = data.stats.maxInterval > 0 ? `${data.stats.maxInterval}ms` : '--';
+        }
+
+        // Update graph if we have history
+        if (data.history && data.history.length > 0) {
+            this.drawTimingGraph(data.history);
+        }
+    }
+
+    /**
+     * Handle timing violation message
+     * @param {Object} data - Violation data from server
+     */
+    handleTimingViolation(data) {
+        const violationsList = document.getElementById('violations-list');
+        if (!violationsList) return;
+
+        const violation = data.violation;
+        const time = new Date(violation.timestamp).toLocaleTimeString();
+
+        // Create violation entry
+        const entry = document.createElement('div');
+
+        // Color code based on severity
+        let color = '#ff6b6b'; // Red default
+        if (violation.type === 'packet_interval') {
+            if (violation.value < 50) color = '#feca57'; // Yellow for moderate
+            if (violation.value > 100) color = '#ff0000'; // Bright red for severe
+        }
+
+        entry.style.color = color;
+        entry.style.marginBottom = '5px';
+
+        // Format message based on type
+        let message = '';
+        switch (violation.type) {
+            case 'packet_interval':
+                message = `${time} - Interval: ${violation.value}ms (expected 20ms) - ${violation.queueKey || 'unknown'}`;
+                break;
+            case 'queue_buildup':
+                message = `${time} - Queue buildup: ${violation.value} packets waiting - ${violation.queueKey}`;
+                break;
+            case 'high_latency':
+                message = `${time} - High latency: ${violation.value}ms packet age - ${violation.queueKey}`;
+                break;
+            case 'interval_drift':
+                message = `${time} - Timer drift: ${violation.value}ms (system overload)`;
+                break;
+            default:
+                message = `${time} - ${violation.type}: ${violation.value}`;
+        }
+
+        entry.textContent = message;
+
+        // Remove "waiting for data" message if present
+        if (violationsList.firstChild && violationsList.firstChild.textContent === 'Waiting for data...') {
+            violationsList.removeChild(violationsList.firstChild);
+        }
+
+        // Add to top of list
+        violationsList.insertBefore(entry, violationsList.firstChild);
+
+        // Keep only last 10 violations visible
+        while (violationsList.children.length > 10) {
+            violationsList.removeChild(violationsList.lastChild);
+        }
+    }
+
+    /**
+     * Draw timing graph on canvas
+     * @param {Array} history - Array of timing history
+     */
+    drawTimingGraph(history) {
+        const canvas = document.getElementById('timing-canvas');
+        if (!canvas) return;
+
+        const ctx = canvas.getContext('2d');
+        const width = canvas.width = canvas.offsetWidth;
+        const height = canvas.height = canvas.offsetHeight;
+
+        // Clear canvas
+        ctx.clearRect(0, 0, width, height);
+
+        // Draw grid lines
+        ctx.strokeStyle = '#333';
+        ctx.lineWidth = 1;
+
+        // Horizontal lines at 20ms intervals
+        for (let y = 20; y <= 100; y += 20) {
+            const yPos = height - (y / 100) * height;
+            ctx.beginPath();
+            ctx.moveTo(0, yPos);
+            ctx.lineTo(width, yPos);
+            ctx.stroke();
+        }
+
+        // Draw target line at 20ms
+        ctx.strokeStyle = '#00ff00';
+        ctx.lineWidth = 2;
+        const targetY = height - (20 / 100) * height;
+        ctx.beginPath();
+        ctx.moveTo(0, targetY);
+        ctx.lineTo(width, targetY);
+        ctx.stroke();
+
+        // Draw data points
+        if (history.length < 2) return;
+
+        const pointWidth = width / 50; // Show last 50 points
+        const recentHistory = history.slice(-50);
+
+        ctx.strokeStyle = '#ffff00';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+
+        recentHistory.forEach((point, index) => {
+            const x = index * pointWidth;
+            const y = height - (Math.min(point.interval, 100) / 100) * height;
+
+            if (index === 0) {
+                ctx.moveTo(x, y);
+            } else {
+                ctx.lineTo(x, y);
+            }
+
+            // Draw dot for values outside normal range
+            if (point.interval < 15 || point.interval > 25) {
+                ctx.fillStyle = point.interval > 50 ? '#ff0000' : '#feca57';
+                ctx.fillRect(x - 2, y - 2, 4, 4);
+            }
+        });
+
+        ctx.stroke();
     }
 
     // ============= Cleanup =============

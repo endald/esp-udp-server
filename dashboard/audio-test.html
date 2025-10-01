@@ -433,6 +433,44 @@
                 <button onclick="clearAllRoutes()">Clear All Routes</button>
             </div>
         </div>
+
+        <!-- Packet Timing Monitor Panel -->
+        <div class="panel" style="grid-column: 1 / -1;">
+            <h2>⏱️ Packet Timing Monitor</h2>
+            <div class="timing-stats">
+                <div class="stats-grid">
+                    <div class="stat-item">
+                        <div class="stat-label">Current Interval</div>
+                        <div class="stat-value" id="current-interval">--</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-label">Average (20 packets)</div>
+                        <div class="stat-value" id="avg-interval">--</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-label">Min Interval</div>
+                        <div class="stat-value" id="min-interval">--</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-label">Max Interval</div>
+                        <div class="stat-value" id="max-interval">--</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Timing Graph -->
+            <div class="timing-graph" style="height: 150px; margin: 20px 0; position: relative;">
+                <canvas id="timing-canvas" style="width: 100%; height: 100%; border: 1px solid #333;"></canvas>
+            </div>
+
+            <!-- Violations Log -->
+            <div class="violations-log">
+                <h3 style="color: #ff6b6b;">🚨 Timing Violations (Last 10)</h3>
+                <div id="violations-list" style="max-height: 200px; overflow-y: auto; background: #0a0a0a; padding: 10px; border: 1px solid #333; font-family: monospace; font-size: 12px;">
+                    <div style="color: #666;">Waiting for data...</div>
+                </div>
+            </div>
+        </div>
     </div>
 
     <!-- Include audio handler -->
