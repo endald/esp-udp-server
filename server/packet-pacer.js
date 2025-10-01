@@ -122,13 +122,17 @@ class PacketPacer {
     sendScheduledPackets() {
         const now = Date.now();
 
-        // Track setInterval health
-        if (this.lastIntervalFire > 0) {
-            const intervalDrift = now - (this.lastIntervalFire + this.PACKET_INTERVAL);
-            if (Math.abs(intervalDrift) > 10) {
-                const warning = `⚠️ SetInterval drift: ${intervalDrift}ms (system overload?)`;
-                console.warn(warning);
-                this.recordViolation('interval_drift', intervalDrift, null);
+        // Only check timer health if we're actively sending packets
+        if (this.lastIntervalFire > 0 && this.stats.packetsSent > 0) {
+            const timeSinceLastCheck = now - this.lastIntervalFire;
+            // Only check drift if we expect regular intervals (not first run or after idle)
+            if (timeSinceLastCheck < 100) {  // Less than 100ms means we're actively sending
+                const intervalDrift = timeSinceLastCheck - this.PACKET_INTERVAL;
+                if (Math.abs(intervalDrift) > 10) {
+                    const warning = `⚠️ SetInterval drift: ${intervalDrift}ms (system overload?)`;
+                    console.warn(warning);
+                    this.recordViolation('interval_drift', intervalDrift, null);
+                }
             }
         }
         this.lastIntervalFire = now;
@@ -155,22 +159,29 @@ class PacketPacer {
             const packet = queue.packets[0];
             const age = now - packet.timestamp;
 
-            // Check queue depth
+            // Check queue depth (only log occasionally to avoid spam)
             if (queue.packets.length > 5) {
-                console.warn(`📦 Queue buildup: ${queueKey} has ${queue.packets.length} packets waiting`);
-                this.recordViolation('queue_buildup', queue.packets.length, queueKey);
+                // Only log every 10th violation to avoid spam
+                if (!queue.lastBuilupWarning || now - queue.lastBuilupWarning > 1000) {
+                    console.warn(`📦 Queue buildup: ${queueKey} has ${queue.packets.length} packets waiting`);
+                    this.recordViolation('queue_buildup', queue.packets.length, queueKey);
+                    queue.lastBuilupWarning = now;
+                }
             }
 
-            // Wait for initial buffering (prevents underrun on stream start)
-            if (queue.packets.length < 3 && age < 40) {
-                continue; // Need more packets in buffer
+            // Reduced initial buffering for faster startup (was 3 packets + 40ms)
+            if (queue.packets.length < 2 && age < 20) {
+                continue; // Only wait for 2 packets or 20ms
             }
 
             // Check if packet is too old (> MAX_LATENCY)
             if (age > this.MAX_LATENCY) {
                 this.stats.jitterEvents++;
-                console.warn(`🔴 Extreme latency: ${age}ms for ${queueKey} (packet age)`);
-                this.recordViolation('high_latency', age, queueKey);
+                // Only log every 10th high latency to reduce spam
+                if (this.stats.jitterEvents % 10 === 1) {
+                    console.warn(`🔴 Extreme latency: ${age}ms for ${queueKey} (packet age)`);
+                    this.recordViolation('high_latency', age, queueKey);
+                }
             }
 
             // Remove and send this ONE packet
