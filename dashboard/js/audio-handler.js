@@ -15,6 +15,18 @@ class DashboardAudioHandler {
         this.isReceivingAudio = false;
         this.isStreamingFile = false;
 
+        // Processing mode for diagnostics
+        this.processingMode = 'live'; // 'live', 'preprocess', or 'none'
+
+        // Processing timing statistics
+        this.processingStats = {
+            frameProcessTime: [],
+            totalFrames: 0,
+            slowFrames: 0,
+            avgProcessTime: 0,
+            maxProcessTime: 0
+        };
+
         // Audio nodes
         this.microphoneStream = null;
         this.microphoneSource = null;
@@ -213,6 +225,30 @@ class DashboardAudioHandler {
     // ============= Audio Protection =============
 
     /**
+     * Set the processing mode for diagnostics
+     * @param {string} mode - 'live', 'preprocess', or 'none'
+     */
+    setProcessingMode(mode) {
+        this.processingMode = mode;
+        console.log(`Audio processing mode set to: ${mode}`);
+
+        // Reset statistics
+        this.processingStats = {
+            frameProcessTime: [],
+            totalFrames: 0,
+            slowFrames: 0,
+            avgProcessTime: 0,
+            maxProcessTime: 0
+        };
+
+        // Show/hide stats display
+        const statsDiv = document.getElementById('processing-stats');
+        if (statsDiv) {
+            statsDiv.style.display = 'block';
+        }
+    }
+
+    /**
      * Soft limiter to protect 3W 4Ohm speaker from damage and prevent clipping
      * Uses input gain reduction AND lower threshold for proper headroom
      * @param {number} sample - Normalized audio sample (-1 to 1)
@@ -235,6 +271,31 @@ class DashboardAudioHandler {
         return sample; // Pass through normal levels unchanged
     }
 
+    /**
+     * Pre-process entire audio file for smoother streaming
+     * @param {Float32Array} audioData - Raw audio data
+     * @returns {Float32Array} Processed audio data
+     */
+    preprocessAllAudio(audioData) {
+        console.time('Pre-processing audio');
+        const processed = new Float32Array(audioData.length);
+
+        // Process in chunks to show progress
+        const chunkSize = 48000; // 1 second at 48kHz
+        for (let i = 0; i < audioData.length; i++) {
+            processed[i] = this.limitAudio(audioData[i]);
+
+            // Log progress every second
+            if (i % chunkSize === 0 && i > 0) {
+                const progress = (i / audioData.length * 100).toFixed(1);
+                console.log(`Pre-processing: ${progress}%`);
+            }
+        }
+
+        console.timeEnd('Pre-processing audio');
+        return processed;
+    }
+
     // ============= MP3 File Upload and Streaming =============
 
     async uploadAndStreamMP3(file, targetDevice) {
@@ -243,7 +304,7 @@ class DashboardAudioHandler {
             return;
         }
 
-        console.log(`Streaming ${file.name} to device ${targetDevice}`);
+        console.log(`Streaming ${file.name} to device ${targetDevice} [Mode: ${this.processingMode}]`);
         this.isStreamingFile = true;
 
         try {
@@ -256,8 +317,20 @@ class DashboardAudioHandler {
             // Convert to mono 48kHz
             const monoData = this.convertToMono48kHz(audioBuffer);
 
+            // Apply preprocessing if needed
+            let audioToStream = monoData;
+            if (this.processingMode === 'preprocess') {
+                // Pre-process entire audio before streaming
+                this.updateStatus('Pre-processing audio...', 'info');
+                audioToStream = this.preprocessAllAudio(monoData);
+                this.updateStatus('Streaming pre-processed audio', 'success');
+            }
+
             // Stream in 20ms chunks
-            await this.streamAudioData(monoData, targetDevice);
+            await this.streamAudioData(audioToStream, targetDevice);
+
+            // Report final statistics
+            this.reportProcessingStats();
 
         } catch (error) {
             console.error('Failed to process MP3 file:', error);
@@ -295,8 +368,15 @@ class DashboardAudioHandler {
         // Use performance timer for better accuracy
         const startTime = performance.now();
 
+        // Reset statistics for this stream
+        this.processingStats.frameProcessTime = [];
+        this.processingStats.totalFrames = totalFrames;
+        this.processingStats.slowFrames = 0;
+
         for (let i = 0; i < totalFrames; i++) {
             if (!this.isStreamingFile) break;
+
+            const frameProcessStart = performance.now();
 
             // Calculate when this frame should be sent
             const targetTime = startTime + (i * this.frameDuration);
@@ -306,12 +386,39 @@ class DashboardAudioHandler {
             const frameEnd = frameStart + this.frameSize;
             const frame = audioData.slice(frameStart, frameEnd);
 
-            // Convert to Int16 with limiting for speaker protection
+            // Convert to Int16 based on processing mode
             const pcmData = new Int16Array(this.frameSize);
-            for (let j = 0; j < this.frameSize; j++) {
-                // Apply soft limiter before conversion
-                const limited = this.limitAudio(frame[j]);
-                pcmData[j] = Math.floor(limited * 32767);
+
+            if (this.processingMode === 'none') {
+                // No processing - direct conversion (RISKY for speaker!)
+                for (let j = 0; j < this.frameSize; j++) {
+                    // Direct conversion without any limiting
+                    const clipped = Math.max(-1, Math.min(1, frame[j])); // Basic clipping only
+                    pcmData[j] = Math.floor(clipped * 32767);
+                }
+            } else if (this.processingMode === 'live') {
+                // Current live processing with limiter
+                for (let j = 0; j < this.frameSize; j++) {
+                    const limited = this.limitAudio(frame[j]);
+                    pcmData[j] = Math.floor(limited * 32767);
+                }
+            } else {
+                // Preprocess mode - data already processed, just convert
+                for (let j = 0; j < this.frameSize; j++) {
+                    pcmData[j] = Math.floor(frame[j] * 32767);
+                }
+            }
+
+            // Track processing time
+            const frameProcessTime = performance.now() - frameProcessStart;
+            this.processingStats.frameProcessTime.push(frameProcessTime);
+
+            // Count slow frames
+            if (frameProcessTime > 5) {
+                this.processingStats.slowFrames++;
+                if (this.processingStats.slowFrames <= 10) { // Log first 10 slow frames
+                    console.warn(`Frame ${i}: Processing took ${frameProcessTime.toFixed(2)}ms [Mode: ${this.processingMode}]`);
+                }
             }
 
             // Encode and send
@@ -700,6 +807,63 @@ class DashboardAudioHandler {
 
     getStatistics() {
         return this.stats;
+    }
+
+    /**
+     * Report processing statistics after streaming
+     */
+    reportProcessingStats() {
+        if (this.processingStats.frameProcessTime.length === 0) return;
+
+        // Calculate statistics
+        const times = this.processingStats.frameProcessTime;
+        const avg = times.reduce((a, b) => a + b, 0) / times.length;
+        const max = Math.max(...times);
+
+        this.processingStats.avgProcessTime = avg;
+        this.processingStats.maxProcessTime = max;
+
+        // Log to console
+        console.log(`📊 Processing Statistics [Mode: ${this.processingMode}]:`);
+        console.log(`   Total frames: ${this.processingStats.totalFrames}`);
+        console.log(`   Avg process time: ${avg.toFixed(2)}ms`);
+        console.log(`   Max process time: ${max.toFixed(2)}ms`);
+        console.log(`   Slow frames (>5ms): ${this.processingStats.slowFrames} (${(this.processingStats.slowFrames / this.processingStats.totalFrames * 100).toFixed(1)}%)`);
+
+        // Analyze based on mode
+        if (this.processingMode === 'live' && avg > 3) {
+            console.warn('⚠️ Live processing is taking too long - consider using preprocess mode');
+        }
+        if (this.processingMode === 'none' && max < 1) {
+            console.log('✅ No processing overhead detected - timing issues are elsewhere');
+        }
+
+        // Update UI
+        this.updateProcessingDisplay(avg, max);
+    }
+
+    /**
+     * Update the processing stats display on dashboard
+     */
+    updateProcessingDisplay(avg, max) {
+        const avgEl = document.getElementById('avg-process-time');
+        const maxEl = document.getElementById('max-process-time');
+        const slowEl = document.getElementById('slow-frames');
+
+        if (avgEl) avgEl.textContent = avg.toFixed(2);
+        if (maxEl) maxEl.textContent = max.toFixed(2);
+        if (slowEl) slowEl.textContent = `${this.processingStats.slowFrames} / ${this.processingStats.totalFrames}`;
+
+        // Color code based on performance
+        if (maxEl) {
+            if (max > 10) {
+                maxEl.style.color = '#ff0000'; // Red for bad
+            } else if (max > 5) {
+                maxEl.style.color = '#feca57'; // Yellow for warning
+            } else {
+                maxEl.style.color = '#00ff00'; // Green for good
+            }
+        }
     }
 
     // ============= Timing Display =============

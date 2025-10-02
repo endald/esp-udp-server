@@ -308,6 +308,28 @@
                     </select>
                 </div>
 
+                <!-- Processing Mode Selector -->
+                <div class="control-group">
+                    <label>Processing Mode:</label>
+                    <select id="processing-mode" onchange="updateProcessingMode()">
+                        <option value="live">Live Processing (Current)</option>
+                        <option value="preprocess">Pre-Process All (Slower Start)</option>
+                        <option value="none">No Processing (⚠️ Speaker Risk)</option>
+                    </select>
+                    <div id="processing-info" style="color: #feca57; font-size: 12px; margin-top: 5px;">
+                        Processing during playback
+                    </div>
+                </div>
+
+                <!-- Processing Stats Display -->
+                <div id="processing-stats" style="display: none; margin-top: 10px; padding: 10px; background: #1a1a1a; border: 1px solid #333; border-radius: 4px;">
+                    <div style="font-size: 12px; color: #00ff00;">
+                        <div>Avg Frame Time: <span id="avg-process-time">--</span>ms</div>
+                        <div>Max Frame Time: <span id="max-process-time">--</span>ms</div>
+                        <div>Slow Frames: <span id="slow-frames">--</span></div>
+                    </div>
+                </div>
+
                 <div class="button-group">
                     <button id="stream-mp3-btn" onclick="streamMP3()">
                         ▶️ Stream MP3
@@ -503,6 +525,22 @@
         let currentListeningDevice = null;
         let isMicrophoneActive = false;
         let isStreamingMP3 = false;
+
+        // Processing mode handler
+        function updateProcessingMode() {
+            const mode = document.getElementById('processing-mode').value;
+            if (audioHandler) {
+                audioHandler.setProcessingMode(mode);
+            }
+
+            // Update info text
+            const infoText = {
+                'none': '⚠️ No protection - be careful with volume!',
+                'preprocess': 'Will process entire file before streaming',
+                'live': 'Processing during playback'
+            };
+            document.getElementById('processing-info').textContent = infoText[mode];
+        }
 
         // MP3 File Streaming
         function streamMP3() {
