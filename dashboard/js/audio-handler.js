@@ -250,25 +250,56 @@ class DashboardAudioHandler {
 
     /**
      * Soft limiter to protect 3W 4Ohm speaker from damage and prevent clipping
-     * Uses input gain reduction AND lower threshold for proper headroom
+     * ENHANCED: Stronger processing for bass-boosted content
      * @param {number} sample - Normalized audio sample (-1 to 1)
      * @returns {number} Limited sample with proper headroom
      */
     limitAudio(sample) {
-        // Pre-gain reduction to prevent hot signals from clipping
-        const INPUT_GAIN = 0.75;  // Reduce input by 25% for headroom
+        // STRONGER: Reduce input more aggressively for bass protection
+        const INPUT_GAIN = 0.6;  // Reduce input by 40% (was 25%)
         sample = sample * INPUT_GAIN;
 
-        // Lower threshold for more aggressive limiting (70% = -3dB headroom)
-        const limit = 0.70; // 70% max amplitude to prevent clipping
+        // LOWER threshold for bass-heavy content protection
+        const limit = 0.55; // 55% max amplitude (was 70%) - much safer for bass
 
-        // Apply soft limiting only when approaching limits
+        // Two-stage limiting for better bass control
+
+        // Stage 1: Soft knee compression starts earlier
+        if (Math.abs(sample) > limit * 0.7) { // Start compressing at 70% of limit
+            // Gentle compression ratio
+            const excess = Math.abs(sample) - (limit * 0.7);
+            const compressed = (limit * 0.7) + (excess * 0.5); // 2:1 compression
+            sample = compressed * Math.sign(sample);
+        }
+
+        // Stage 2: Hard limiting at threshold
         if (Math.abs(sample) > limit) {
-            // Tanh provides smooth compression near limits
-            return Math.tanh(sample * 0.9) * limit;
+            // Aggressive tanh limiting for anything above threshold
+            // Using 0.7 multiplier for stronger compression (was 0.9)
+            const compressed = Math.tanh(sample * 0.7) * limit;
+            return compressed;
         }
 
         return sample; // Pass through normal levels unchanged
+    }
+
+    /**
+     * Even stronger limiter for bass-heavy content (optional)
+     * Can be used when bass detection triggers
+     */
+    limitAudioBassMode(sample) {
+        // Very aggressive for bass protection
+        const INPUT_GAIN = 0.5;  // 50% reduction for heavy bass
+        sample = sample * INPUT_GAIN;
+
+        const limit = 0.45; // 45% max - very safe for bass
+
+        // Immediate compression
+        if (Math.abs(sample) > limit) {
+            return Math.tanh(sample * 0.6) * limit;
+        }
+
+        return sample;
     }
 
     /**
@@ -373,6 +404,35 @@ class DashboardAudioHandler {
         this.processingStats.totalFrames = totalFrames;
         this.processingStats.slowFrames = 0;
 
+        // Simple bass detection: Check first few seconds for high amplitude low frequencies
+        let isBassHeavy = false;
+        if (this.processingMode === 'live') {
+            // Sample first 5 seconds worth of frames
+            const samplesToCheck = Math.min(totalFrames, 250); // 5 seconds at 50 fps
+            let highAmplitudeCount = 0;
+
+            for (let i = 0; i < samplesToCheck; i++) {
+                const frameStart = i * this.frameSize;
+                const frameEnd = Math.min(frameStart + this.frameSize, audioData.length);
+                const frame = audioData.slice(frameStart, frameEnd);
+
+                // Check for high amplitude samples (potential bass)
+                for (let j = 0; j < frame.length; j++) {
+                    if (Math.abs(frame[j]) > 0.7) {
+                        highAmplitudeCount++;
+                    }
+                }
+            }
+
+            // If more than 10% of samples are high amplitude, consider it bass-heavy
+            const ratio = highAmplitudeCount / (samplesToCheck * this.frameSize);
+            isBassHeavy = ratio > 0.1;
+
+            if (isBassHeavy) {
+                console.warn('🔊 Bass-heavy content detected! Using stronger limiting.');
+            }
+        }
+
         for (let i = 0; i < totalFrames; i++) {
             if (!this.isStreamingFile) break;
 
@@ -397,9 +457,11 @@ class DashboardAudioHandler {
                     pcmData[j] = Math.floor(clipped * 32767);
                 }
             } else if (this.processingMode === 'live') {
-                // Current live processing with limiter
+                // Live processing - use stronger limiting for bass-heavy content
                 for (let j = 0; j < this.frameSize; j++) {
-                    const limited = this.limitAudio(frame[j]);
+                    const limited = isBassHeavy
+                        ? this.limitAudioBassMode(frame[j])  // Use bass mode if detected
+                        : this.limitAudio(frame[j]);         // Normal limiting otherwise
                     pcmData[j] = Math.floor(limited * 32767);
                 }
             } else {
